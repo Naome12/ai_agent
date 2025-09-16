@@ -1,0 +1,146 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  employer
+  job_seeker
+}
+
+enum ExperienceLevel {
+  beginner
+  skilled
+  advanced
+}
+
+enum JobType {
+  full_time
+  part_time
+  contract
+  temporary
+}
+
+enum JobCategory {
+  BASIC
+  ADVANCED
+}
+
+enum ApplicationStatus {
+  applied
+  interview
+  hired
+  rejected
+}
+
+enum PaymentStatus {
+  pending
+  paid
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  fname     String
+  lname     String
+  email     String   @unique
+  password  String
+  role      UserRole
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  jobSeeker          JobSeeker?
+  employer           Employer?
+  PasswordResetToken PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JobSeeker {
+  id            Int             @id @default(autoincrement())
+  userId        Int             @unique
+  phone         String?
+  skills        String?
+  experience    ExperienceLevel
+  location      String?
+  desiredJob    JobType?
+  expectedSalary Float?
+  createdAt     DateTime        @default(now())
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id])
+  applications Application[]
+  payments     Payment[]     @relation("JobSeekerPayments")
+}
+
+model Employer {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  companyName String?
+  companySize Int?
+  industry    String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id])
+  jobs     Job[]
+  payments Payment[] @relation("EmployerPayments")
+}
+
+model Job {
+  id          Int         @id @default(autoincrement())
+  employerId  Int
+  title       String
+  description String?
+  jobType     JobType
+  category    JobCategory
+  location    String?
+  salary      Float?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  employer     Employer      @relation(fields: [employerId], references: [id])
+  applications Application[]
+}
+
+model Application {
+  id          Int               @id @default(autoincrement())
+  jobId       Int
+  jobSeekerId Int
+  status      ApplicationStatus @default(applied)
+  appliedAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  job       Job       @relation(fields: [jobId], references: [id])
+  jobSeeker JobSeeker @relation(fields: [jobSeekerId], references: [id])
+}
+
+model Payment {
+  id          Int           @id @default(autoincrement())
+  employerId  Int
+  jobSeekerId Int
+  amount      Float
+  dueDate     DateTime
+  status      PaymentStatus @default(pending)
+  createdAt   DateTime      @default(now())
+
+  // Relations
+  employer  Employer  @relation("EmployerPayments", fields: [employerId], references: [id])
+  jobSeeker JobSeeker @relation("JobSeekerPayments", fields: [jobSeekerId], references: [id])
+}
