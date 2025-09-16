@@ -22,7 +22,11 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
-          hover: "hsl(var(--primary-hover))",
+        },
+        "kozi-pink": {
+          DEFAULT: "hsl(var(--kozi-pink))",
+          light: "hsl(var(--kozi-pink-light))",
+          dark: "hsl(var(--kozi-pink-dark))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -39,15 +43,6 @@ export default {
         accent: {
           DEFAULT: "hsl(var(--accent))",
           foreground: "hsl(var(--accent-foreground))",
-          hover: "hsl(var(--accent-hover))",
-        },
-        chat: {
-          user: "hsl(var(--chat-user))",
-          "user-foreground": "hsl(var(--chat-user-foreground))",
-          assistant: "hsl(var(--chat-assistant))",
-          "assistant-foreground": "hsl(var(--chat-assistant-foreground))",
-          system: "hsl(var(--chat-system))",
-          "system-foreground": "hsl(var(--chat-system-foreground))",
         },
         popover: {
           DEFAULT: "hsl(var(--popover))",
@@ -67,11 +62,6 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
-      },
-      backgroundImage: {
-        "gradient-primary": "var(--gradient-primary)",
-        "gradient-accent": "var(--gradient-accent)",
-        "gradient-background": "var(--gradient-background)",
       },
       borderRadius: {
         lg: "var(--radius)",
