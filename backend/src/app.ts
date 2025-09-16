@@ -10,6 +10,7 @@ import employerRoutes from "./routes/employer.route";
 import applicationRoutes from "./routes/application.route";
 import paymentRoutes from "./routes/payment.route";
 import chatRoutes from "./routes/chat.route";
+import sqlagentRoutes from "./routes/sqlagent.route";
 import { errorHandler } from "./middlewares/error";
 import logger from "./utils/logger";
 import swaggerUi from "swagger-ui-express";
@@ -90,6 +91,7 @@ app.use("/api/employers", employerRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/sql-agent", sqlagentRoutes)
 
 // Error handler
 app.use(errorHandler);
