@@ -60,6 +60,9 @@ All colors MUST be HSL.
     --sidebar-border: 220 13% 91%;
 
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --chat-sql: hsl(220, 70%, 90%);
+  --chat-sql-foreground: hsl(220, 70%, 20%);
+  --chat-sql-border: hsl(220, 70%, 80%);
   }
 
   .dark {
@@ -98,6 +101,9 @@ All colors MUST be HSL.
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+     --chat-sql: hsl(220, 40%, 20%);
+  --chat-sql-foreground: hsl(220, 70%, 90%);
+  --chat-sql-border: hsl(220, 40%, 30%);
   }
 }
 
