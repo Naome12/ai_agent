@@ -81,3 +81,5 @@
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 00:23:18"}
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 00:23:39"}
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 00:39:54"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 00:47:41"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 00:49:59"}
