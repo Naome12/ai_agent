@@ -18,7 +18,7 @@ const router = Router();
 
 /**
  * @openapi
- * /auth/signup:
+ * /api/auth/signup:
  *   post:
  *     summary: Signup user (job seeker, employer, admin)
  *     tags: [Auth]
@@ -36,7 +36,7 @@ router.post("/signup", validate(SignupDto), signupCtrl);
 
 /**
  * @openapi
- * /auth/login:
+ * /api/auth/login:
  *   post:
  *     summary: Login user
  *     tags: [Auth]
@@ -54,7 +54,7 @@ router.post("/login", validate(LoginDto), loginCtrl);
 
 /**
  * @openapi
- * /auth/forgot-password:
+ * /api/auth/forgot-password:
  *   post:
  *     summary: Request password reset
  *     tags: [Auth]
@@ -68,11 +68,15 @@ router.post("/login", validate(LoginDto), loginCtrl);
  *       200:
  *         description: Reset token generated
  */
-router.post("/forgot-password", validate(ForgotPasswordDto), forgotPasswordCtrl);
+router.post(
+  "/forgot-password",
+  validate(ForgotPasswordDto),
+  forgotPasswordCtrl
+);
 
 /**
  * @openapi
- * /auth/reset-password:
+ * /api/auth/reset-password:
  *   post:
  *     summary: Reset password
  *     tags: [Auth]

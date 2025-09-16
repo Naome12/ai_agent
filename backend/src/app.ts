@@ -11,6 +11,7 @@ import applicationRoutes from "./routes/application.route";
 import paymentRoutes from "./routes/payment.route";
 import chatRoutes from "./routes/chat.route";
 import sqlagentRoutes from "./routes/sqlagent.route";
+import gmailRoutes from "./routes/gmail.route";
 import { errorHandler } from "./middlewares/error";
 import logger from "./utils/logger";
 import swaggerUi from "swagger-ui-express";
@@ -92,6 +93,7 @@ app.use("/api/applications", applicationRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/sql-agent", sqlagentRoutes)
+app.use("/api/gmail", gmailRoutes);
 
 // Error handler
 app.use(errorHandler);
