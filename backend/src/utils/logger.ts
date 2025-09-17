@@ -8,7 +8,7 @@ const logger = createLogger({
     format.splat(),
     format.json()
   ),
-  defaultMeta: { service: "ncda-trainings-service" },
+  defaultMeta: { service: "kozi-ai-agent-service" },
   transports: [
     new transports.Console({
       format: format.combine(format.colorize(), format.simple())

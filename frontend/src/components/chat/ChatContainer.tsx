@@ -21,6 +21,7 @@ export interface Message {
   quickActions?: string[];
   sqlData?: any;
   isError?: boolean;
+  isStreaming?: boolean;
 }
 
 interface ChatContainerProps {
@@ -104,30 +105,95 @@ export default function ChatContainer({
     }
   };
 
+  const renderFormattedContent = (content: string) => {
+    const lines = content.split('\n');
+    return lines.map((line, index) => {
+      // Handle bold text
+      if (line.includes('**')) {
+        const parts = line.split('**');
+        return (
+          <p key={index} className="mb-2">
+            {parts.map((part, i) => 
+              i % 2 === 1 ? (
+                <strong key={i} className="font-semibold">{part}</strong>
+              ) : (
+                <span key={i}>{part}</span>
+              )
+            )}
+          </p>
+        );
+      }
+      
+      // Handle numbered lists
+      if (/^\d+\.\s/.test(line)) {
+        return (
+          <ol key={index} className="list-decimal list-inside mb-2 ml-4">
+            <li>{line.replace(/^\d+\.\s/, '')}</li>
+          </ol>
+        );
+      }
+      
+      // Handle bullet points
+      if (line.trim().startsWith('•')) {
+        return (
+          <ul key={index} className="list-disc list-inside mb-2 ml-4">
+            <li>{line.replace('•', '').trim()}</li>
+          </ul>
+        );
+      }
+      
+      // Handle table-like structures
+      if (line.includes('│') || line.includes('├') || line.includes('┼') || line.includes('┤')) {
+        return (
+          <pre key={index} className="text-xs font-mono bg-muted/50 p-2 rounded mb-2 overflow-x-auto">
+            {line}
+          </pre>
+        );
+      }
+      
+      // Regular text
+      return <p key={index} className="mb-2">{line}</p>;
+    });
+  };
+
   const renderSqlData = (sqlData: any) => {
     if (!sqlData) return null;
 
-    if (Array.isArray(sqlData)) {
+    if (Array.isArray(sqlData) && sqlData.length > 0) {
+      const columns = Object.keys(sqlData[0]);
+      
       return (
         <div className="mt-3 p-3 bg-background/50 rounded-lg border">
-          <h4 className="text-sm font-semibold mb-2">Query Results:</h4>
+          <h4 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <Database className="h-4 w-4" />
+            Query Results
+          </h4>
           <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse">
+            <table className="w-full text-xs border-collapse rounded-lg overflow-hidden">
               <thead>
-                <tr className="border-b">
-                  {Object.keys(sqlData[0] || {}).map((key) => (
-                    <th key={key} className="p-2 text-left font-semibold">
-                      {key}
+                <tr className="bg-muted/50">
+                  {columns.map((column) => (
+                    <th 
+                      key={column} 
+                      className="p-3 text-left font-semibold border-b border-border capitalize"
+                    >
+                      {column.replace(/_/g, ' ')}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {sqlData.map((row, index) => (
-                  <tr key={index} className="border-b hover:bg-muted/50">
-                    {Object.values(row).map((value: any, cellIndex) => (
-                      <td key={cellIndex} className="p-2">
-                        {String(value)}
+                  <tr 
+                    key={index} 
+                    className={cn(
+                      "border-b border-border hover:bg-muted/30",
+                      index % 2 === 0 ? "bg-background" : "bg-muted/10"
+                    )}
+                  >
+                    {columns.map((column, cellIndex) => (
+                      <td key={cellIndex} className="p-3">
+                        {String(row[column] || 'NULL')}
                       </td>
                     ))}
                   </tr>
@@ -135,8 +201,30 @@ export default function ChatContainer({
               </tbody>
             </table>
           </div>
-          <div className="text-xs text-muted-foreground mt-2">
-            {sqlData.length} row{sqlData.length !== 1 ? 's' : ''} returned
+          <div className="text-xs text-muted-foreground mt-3 flex items-center gap-2">
+            <div className="flex-1">
+              📊 Found {sqlData.length} row{sqlData.length !== 1 ? 's' : ''}
+            </div>
+            <Badge variant="outline" className="text-xs">
+              SQL Query
+            </Badge>
+          </div>
+        </div>
+      );
+    }
+
+    // Handle single row results
+    if (typeof sqlData === 'object' && sqlData !== null) {
+      return (
+        <div className="mt-3 p-3 bg-background/50 rounded-lg border">
+          <h4 className="text-sm font-semibold mb-2">Query Result:</h4>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            {Object.entries(sqlData).map(([key, value]) => (
+              <div key={key} className="flex justify-between items-center border-b pb-1">
+                <span className="font-medium capitalize">{key.replace(/_/g, ' ')}:</span>
+                <span className="text-muted-foreground">{String(value)}</span>
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -144,7 +232,7 @@ export default function ChatContainer({
 
     return (
       <div className="mt-3 p-3 bg-background/50 rounded-lg border">
-        <pre className="text-xs whitespace-pre-wrap">
+        <pre className="text-xs whitespace-pre-wrap font-mono">
           {JSON.stringify(sqlData, null, 2)}
         </pre>
       </div>
@@ -241,7 +329,7 @@ export default function ChatContainer({
                   )}
                 >
                   <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {message.content}
+                    {renderFormattedContent(message.content)}
                   </div>
 
                   {message.sqlData && renderSqlData(message.sqlData)}

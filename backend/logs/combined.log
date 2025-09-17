@@ -167,3 +167,14 @@
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 17:53:47"}
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 17:53:54"}
 {"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 17:59:01"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 18:23:11"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"ncda-trainings-service","timestamp":"2025-09-17 18:51:34"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-aiagent-service","timestamp":"2025-09-17 18:52:47"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 18:54:43"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 18:55:39"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 18:56:02"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 18:56:14"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 19:04:23"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 19:05:26"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 19:31:24"}
+{"level":"info","message":{"msg":"API running on :5050"},"service":"kozi-ai-agent-service","timestamp":"2025-09-17 19:48:59"}

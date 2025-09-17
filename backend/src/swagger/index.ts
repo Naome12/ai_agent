@@ -5,8 +5,8 @@ import app from '../app';
 const specs = swaggerJsdoc({
   definition: {
     openapi: '3.0.0',
-    info: { title: 'NCDA Trainings Management System API', version: '1.0.0' },
-    servers: [{ url: process.env.API_BASE_URL || 'http://localhost:5000' }],
+    info: { title: 'KOZI AI AGENT API', version: '1.0.0' },
+    servers: [{ url: process.env.API_BASE_URL || 'http://localhost:5050' }],
     components: {
       securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' } },
     },
