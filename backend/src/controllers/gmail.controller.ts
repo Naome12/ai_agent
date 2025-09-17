@@ -14,8 +14,21 @@ export const runGmailAgentCtrl = async (req: Request, res: Response) => {
     }
 
     const result = await gmailAgent.invoke(input);
-    res.json({ success: true, output: result.output });
+    
+    // Properly handle success/failure based on the result
+    if (result.success) {
+      res.json({ success: true, output: result.output });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: result.error,
+        message: "Gmail agent execution failed" 
+      });
+    }
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: error.message 
+    });
   }
 };
