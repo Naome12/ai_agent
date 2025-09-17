@@ -9,65 +9,48 @@ router.post("/", async (req, res) => {
     const { message, userType } = req.body;
 
     const prompt = `
-You are a strict classifier for Kozi AI. 
-The user role is: ${userType}.
-Your job is to classify the following user message into exactly one of three categories:
+You are the official Kozi AI assistant.
+Your job is to classify the user's message into exactly one of three categories: "chat", "sql", or "gmail".
+Then, if possible, provide a helpful response based on the user's role and message.
 
-### Categories:
-
-1. "chat" → 
-- ONLY for Kozi-related small talk, guidance, or platform help.  
-- Greeting or onboarding messages specific to Kozi ("hello", "hi", "how can I use Kozi?", "what can you do here?").
-- Advice about job applications, CVs, interview tips, or using the Kozi platform.
-- Suggestions or recommendations within the Kozi system (e.g., "recommend me jobs", "help me improve my profile").
-- ❌ NOT for general knowledge questions or unrelated topics (those must still be classified as "chat", but the assistant will politely say it's out of scope).
-
-Examples:  
-- "Can you give me interview tips?"  
-- "How do I apply for a job on Kozi?"  
-- "What can Kozi do for job seekers?"  
-- "Thanks for helping me with my CV".
-
-2. "sql" → 
-- Any request that involves retrieving or analyzing Kozi database information.  
-- Jobs, employers, job seekers, users, platform statistics, analytics, or structured data queries.  
-- Includes "show", "list", "count", "top skills", "latest jobs", "user statistics", "database records", etc.  
-
-Examples:  
-- "Show me the latest jobs".  
-- "How many employers joined this month?".  
-- "List all job seekers with advanced skills".  
-- "What are the top skills in demand?".
-
-3. "gmail" → 
-- Email-related actions (read, send, search, inbox management).  
-- Includes inbox, unread, drafts, sent, spam, starred, important, attachments, and sending emails.  
-- ⚠️ Only valid if user role = admin.  
-- If user is NOT admin but asks about Gmail, classify as "chat".
-
-Examples:  
-- "Send an email to HR".  
-- "Show me unread emails".  
-- "Search my inbox for project updates".  
-
----
-
+User role: ${userType}
 Message: "${message}"
 
-Return ONLY one word: chat, sql, or gmail.
+Classification rules:
+- "chat": any Kozi platform guidance, greetings, job seeker or employer requests, platform help.
+  - Examples: "I need a job", "I want to hire", "How do I apply for a job?"
+- "sql": database or analytics queries (jobs, employers, users, stats). Usually admin only.
+- "gmail": email-related actions (read, send, search). Only admin can execute. 
+  - If non-admin asks about Gmail, classify as "chat" and respond helpfully explaining admin-only access.
+
+Response rules:
+- If message is a valid Kozi action (like "I want to hire", "I need a job"), give a helpful step-by-step response.
+- For non-admin Gmail requests, suggest what they would do if they were admin.
+- Always be professional, supportive, and clear.
+- Return a JSON object ONLY like this:
+{
+  "type": "chat" | "sql" | "gmail",
+  "response": "Your friendly, actionable reply here."
+}
 `;
 
     const response = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0,
-      max_tokens: 5,
+      max_tokens: 300,
     });
 
-    const classification =
-      response.choices[0].message?.content?.trim().toLowerCase() || "chat";
+    const resultText = response.choices[0].message?.content?.trim() || '';
+    let parsed;
+    try {
+      parsed = JSON.parse(resultText);
+    } catch {
+      // fallback: default to chat
+      parsed = { type: "chat", response: "I'm here to help with Kozi platform requests!" };
+    }
 
-    res.json({ type: classification });
+    res.json(parsed);
   } catch (error) {
     console.error("Classifier error:", error);
     res.status(500).json({ error: "Failed to classify query" });
