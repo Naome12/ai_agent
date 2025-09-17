@@ -5,7 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
 export default function Dashboard() {
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const userType = (user?.role || "job_seeker") as UserType;
 
   const [messages, setMessages] = useState<Message[]>([
@@ -25,19 +25,27 @@ I can also help you retrieve data from our database. Try asking questions like:
           ? ["Browse jobs", "Update my CV", "Get application tips", "Show my applications", "Show job seekers", "Top skills"]
           : userType === "employer"
           ? ["Post a job", "View candidates", "Manage interviews", "Company statistics", "Show employers", "Recent jobs"]
-          : ["View platform stats", "Manage users", "Check payments", "System analytics", "All users", "Database stats"],
+          : ["View platform stats", "Manage users", "Check payments", "System analytics", "All users", "Database stats", "Check emails"],
     },
   ]);
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const detectQueryType = (message: string): 'chat' | 'sql' => {
+  const detectQueryType = (message: string): 'chat' | 'sql' | 'gmail' => {
     const sqlKeywords = [
       'show', 'list', 'count', 'how many', 'statistics', 'analytics',
       'data', 'retrieve', 'get', 'find', 'search', 'query', 'report',
       'top', 'latest', 'recent', 'total', 'average', 'sum', 'view', 
       'filter', 'where', 'group by', 'order by', 'join', 'select', 
       'from', 'database', 'table', 'record', 'entries', 'all'
+    ];
+    
+    const gmailKeywords = [
+      'email', 'emails', 'gmail', 'inbox', 'message', 'messages',
+      'unread', 'read', 'sent', 'draft', 'drafts', 'spam', 'starred',
+      'important', 'attachment', 'attachments', 'search email',
+      'find email', 'check mail', 'my emails', 'email from',
+      'recent emails', 'latest emails', 'send email'
     ];
     
     const chatKeywords = [
@@ -48,24 +56,98 @@ I can also help you retrieve data from our database. Try asking questions like:
     
     const lowerMessage = message.toLowerCase();
     
-    // If it contains SQL keywords and not chat keywords, it's SQL
+    // Check for Gmail queries first (admin only)
+    const hasGmail = gmailKeywords.some(keyword => lowerMessage.includes(keyword));
     const hasSql = sqlKeywords.some(keyword => lowerMessage.includes(keyword));
     const hasChat = chatKeywords.some(keyword => lowerMessage.includes(keyword));
+    
+    // If it's a Gmail query and user is admin, prioritize Gmail
+    if (hasGmail && userType === "admin") {
+      return 'gmail';
+    }
     
     return hasSql && !hasChat ? 'sql' : 'chat';
   };
 
-  // Add this helper function to format SQL results
-const formatSQLResult = (content: string): string => {
-  // Clean up markdown table formatting for better display
-  return content
-    .replace(/```/g, '') // Remove markdown code blocks
-    .replace(/\|\s*---/g, '│———') // Better table borders
-    .replace(/\|/g, '│') // Better pipe characters
-    .replace(/\\n/g, '\n') // Convert escaped newlines
-    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold
-    .replace(/\*(.*?)\*/g, '$1'); // Remove italics
-};
+  const formatSQLContent = (content: string): string => {
+    return content
+      .replace(/\\n/g, '\n')
+      .replace(/\|\s*---/g, '| ——— ')
+      .replace(/\*\*(.*?)\*\*/g, '**$1**')
+      .replace(/✅/g, '✅ ')
+      .replace(/❌/g, '❌ ')
+      .replace(/🔍/g, '🔍 ')
+      .replace(/📊/g, '📊 ')
+      .replace(/📭/g, '📭 ');
+  };
+
+  const handleGmailQuery = async (message: string, streamId: string) => {
+    try {
+      if (!token) {
+        throw new Error("Authentication token is missing");
+      }
+
+      const response = await fetch('/api/gmail/agent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          input: message
+        })
+      });
+      
+      if (!response.ok) {
+        // Check if it's specifically an authentication error
+        if (response.status === 401) {
+          throw new Error("Authentication failed. Please log in again.");
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === streamId ? { 
+            ...msg, 
+            content: data.output || data.message || data.content || "Email action completed successfully",
+            isStreaming: false 
+          } : msg
+        )
+      );
+      
+    } catch (error: any) {
+      console.error("Gmail query error:", error);
+      
+      let errorMessage = "❌ Failed to process email request. Please try again.";
+      if (error.message.includes("Authentication failed")) {
+        errorMessage = "❌ Authentication failed. Please log in again to use Gmail features.";
+      } else if (error.message.includes("token is missing")) {
+        errorMessage = "❌ Authentication required. Please log in again.";
+      }
+      
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === streamId ? { 
+            ...msg, 
+            content: errorMessage,
+            isStreaming: false 
+          } : msg
+        )
+      );
+      
+      // Show toast for authentication errors
+      if (error.message.includes("Authentication")) {
+        toast({
+          title: "Authentication Error",
+          description: "Please log in again to access Gmail features",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   const handleSendMessage = useCallback(
     async (message: string, currentUserType: UserType) => {
@@ -84,157 +166,82 @@ const formatSQLResult = (content: string): string => {
       try {
         const queryType = detectQueryType(message);
         
-        if (queryType === 'sql') {
-          // Use SQL Agent for database queries with streaming
-          const evtSource = new EventSource(
-            `/api/sql-agent/stream?input=${encodeURIComponent(message)}`
-          );
-
-          let assistantContent = "";
-          let streamId = `stream-${Date.now()}`;
-
-          setMessages((prev) => [
-            ...prev,
-            { 
-              id: streamId, 
-              type: "assistant", 
-              content: "", 
+        if (queryType === 'gmail') {
+          if (currentUserType !== 'admin') {
+            // Non-admin users trying to access Gmail functionality
+            const errorMessage: Message = {
+              id: Date.now().toString(),
+              type: "assistant",
+              content: "❌ Gmail functionality is only available for administrators.",
               timestamp: new Date(),
-              isStreaming: true 
-            },
-          ]);
-
-// Add this format function at the top of your component
-const formatSQLContent = (content: string): string => {
-  return content
-    .replace(/\\n/g, '\n') // Convert escaped newlines
-    .replace(/\|\s*---/g, '| ——— ') // Better table borders
-    .replace(/\*\*(.*?)\*\*/g, '**$1**') // Keep bold for emphasis
-    .replace(/✅/g, '✅ ')
-    .replace(/❌/g, '❌ ')
-    .replace(/🔍/g, '🔍 ')
-    .replace(/📊/g, '📊 ')
-    .replace(/📭/g, '📭 ');
-};
-
-// Update the message handler in your handleSendMessage function:
-evtSource.onmessage = (e) => {
-  try {
-    if (e.data === '[DONE]') {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === streamId ? { 
-            ...msg, 
-            id: Date.now().toString(), 
-            isStreaming: false,
-            content: formatSQLContent(assistantContent)
-          } : msg
-        )
-      );
-      evtSource.close();
-      setIsLoading(false);
-      return;
-    }
-
-    const data = JSON.parse(e.data);
-    
-    if (data.content) {
-      assistantContent += data.content;
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === streamId ? { 
-            ...msg, 
-            content: formatSQLContent(assistantContent)
-          } : msg
-        )
-      );
-    }
-  } catch (error) {
-    if (e.data !== "[DONE]") {
-      assistantContent += e.data;
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg.id === streamId ? { 
-            ...msg, 
-            content: formatSQLContent(assistantContent)
-          } : msg
-        )
-      );
-    }
-  }
-};
-
-          evtSource.onerror = (err) => {
-            console.error("SQL Agent SSE error:", err);
-            toast({
-              title: "Error",
-              description: "Failed to process your database query",
-              variant: "destructive",
-            });
-            evtSource.close();
-            
-            // Update the stream message with error
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === streamId 
-                  ? { 
-                      ...msg, 
-                      content: assistantContent + "\n\n❌ Failed to complete the query. Please try again.",
-                      isStreaming: false 
-                    } 
-                  : msg
-              )
-            );
+            };
+            setMessages((prev) => [...prev, errorMessage]);
             setIsLoading(false);
-          };
-
-          // Close the stream after 30 seconds timeout
-          setTimeout(() => {
-            if (evtSource.readyState !== EventSource.CLOSED) {
-              evtSource.close();
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === streamId 
-                    ? { 
-                        ...msg, 
-                        content: assistantContent + "\n\n⏰ Query timeout. Please try a simpler query.",
-                        isStreaming: false 
-                      } 
-                    : msg
-                )
-              );
-              setIsLoading(false);
-            }
-          }, 30000);
-
-        } else {
-          // Use regular chat for general conversations
-          const allMessages = [...messages, userMessage];
-          const evtSource = new EventSource(
-            `/api/chat/stream?messages=${encodeURIComponent(
-              JSON.stringify(allMessages)
-            )}`
-          );
-
-          let assistantContent = "";
-          let streamId = `stream-${Date.now()}`;
-
-          setMessages((prev) => [
-            ...prev,
-            { 
-              id: streamId, 
-              type: "assistant", 
-              content: "", 
+            return;
+          }
+          
+          if (!token) {
+            // No authentication token available
+            const errorMessage: Message = {
+              id: Date.now().toString(),
+              type: "assistant",
+              content: "❌ Authentication required. Please log in again to use Gmail features.",
               timestamp: new Date(),
-              isStreaming: true 
-            },
-          ]);
+            };
+            setMessages((prev) => [...prev, errorMessage]);
+            setIsLoading(false);
+            return;
+          }
+        }
 
-          evtSource.onmessage = (e) => {
-            if (e.data === "[DONE]") {
+        let streamId = `stream-${Date.now()}`;
+        let assistantContent = "";
+
+        // Add streaming message
+        setMessages((prev) => [
+          ...prev,
+          { 
+            id: streamId, 
+            type: "assistant", 
+            content: "", 
+            timestamp: new Date(),
+            isStreaming: true 
+          },
+        ]);
+
+        // Handle Gmail queries differently (using POST request with auth)
+        if (queryType === 'gmail') {
+          await handleGmailQuery(message, streamId);
+          setIsLoading(false);
+          return;
+        }
+
+        // For chat and SQL, use EventSource as before
+        let apiEndpoint = '';
+        if (queryType === 'chat') {
+          const allMessages = [...messages, userMessage];
+          apiEndpoint = `/api/chat/stream?messages=${encodeURIComponent(
+            JSON.stringify(allMessages)
+          )}`;
+        } else {
+          apiEndpoint = `/api/sql-agent/stream?input=${encodeURIComponent(message)}`;
+        }
+
+        console.log("Calling API endpoint:", apiEndpoint);
+
+        const evtSource = new EventSource(apiEndpoint);
+
+        evtSource.onmessage = (e) => {
+          try {
+            if (e.data === '[DONE]') {
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === streamId ? { ...msg, id: Date.now().toString(), isStreaming: false } : msg
+                  msg.id === streamId ? { 
+                    ...msg, 
+                    id: Date.now().toString(), 
+                    isStreaming: false,
+                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
+                  } : msg
                 )
               );
               evtSource.close();
@@ -242,36 +249,75 @@ evtSource.onmessage = (e) => {
               return;
             }
 
-            assistantContent += e.data;
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === streamId ? { ...msg, content: assistantContent } : msg
-              )
-            );
-          };
+            const data = JSON.parse(e.data);
+            if (data.content) {
+              assistantContent += data.content;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === streamId ? { 
+                    ...msg, 
+                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
+                  } : msg
+                )
+              );
+            }
+          } catch (error) {
+            if (e.data !== "[DONE]") {
+              assistantContent += e.data;
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === streamId ? { 
+                    ...msg, 
+                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
+                  } : msg
+                )
+              );
+            }
+          }
+        };
 
-          evtSource.onerror = (err) => {
-            console.error("SSE error:", err);
-            toast({
-              title: "Error",
-              description: "Failed to fetch AI response",
-              variant: "destructive",
-            });
+        evtSource.onerror = (err) => {
+          console.error("SSE error:", err, "Endpoint:", apiEndpoint);
+          toast({
+            title: "Error",
+            description: `Failed to process your ${queryType} query`,
+            variant: "destructive",
+          });
+          evtSource.close();
+          
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === streamId 
+                ? { 
+                    ...msg, 
+                    content: assistantContent + `\n\n❌ Failed to complete the ${queryType} query. Please try again.`,
+                    isStreaming: false 
+                  } 
+                : msg
+            )
+          );
+          setIsLoading(false);
+        };
+
+        // Close the stream after 30 seconds timeout
+        setTimeout(() => {
+          if (evtSource.readyState !== EventSource.CLOSED) {
             evtSource.close();
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === streamId 
                   ? { 
                       ...msg, 
-                      content: assistantContent + "\n\n❌ Failed to complete the response.",
+                      content: assistantContent + `\n\n⏰ ${queryType} query timeout. Please try again.`,
                       isStreaming: false 
                     } 
                   : msg
               )
             );
             setIsLoading(false);
-          };
-        }
+          }
+        }, 30000);
+
       } catch (err) {
         console.error(err);
         toast({
@@ -280,7 +326,6 @@ evtSource.onmessage = (e) => {
           variant: "destructive",
         });
         
-        // Add error message
         const errorMessage: Message = {
           id: Date.now().toString(),
           type: "assistant",
@@ -292,7 +337,7 @@ evtSource.onmessage = (e) => {
         setIsLoading(false);
       }
     },
-    [messages]
+    [messages, userType, token]
   );
 
   return (

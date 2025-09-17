@@ -235,7 +235,7 @@ private async handleJobSeekerQuery(userInput: string): Promise<{ success: boolea
 // Handle employer queries directly
 private async handleEmployerQuery(userInput: string): Promise<{ success: boolean; rows?: any[]; error?: string }> {
   let limit = 10;
-  let fields = 'user.fname, user.lname, user.email, employer.company_name';
+  let fields = 'user.fname, user.lname, user.email, employer.companyName, employer.companySize';
   
   if (userInput.toLowerCase().includes('5')) limit = 5;
   if (userInput.toLowerCase().includes('3')) limit = 3;
