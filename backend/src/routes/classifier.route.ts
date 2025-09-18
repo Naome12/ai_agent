@@ -1,3 +1,4 @@
+// src/routes/chatClassifier.ts
 import express from "express";
 import OpenAI from "openai";
 
@@ -6,48 +7,77 @@ const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 router.post("/", async (req, res) => {
   try {
-    const { message, userType } = req.body;
+    const { message, userType } = req.body; // e.g., "jobSeeker", "employer", "admin"
 
     const prompt = `
 You are the official Kozi AI assistant.
-Your job is to classify the user's message into exactly one of three categories: "chat", "sql", or "gmail".
-Then, if possible, provide a helpful response based on the user's role and message.
+Your job is to classify the user's message into exactly one of three categories: "chat", "sql", or "gmail",
+and provide a concise, structured, actionable response based on their role and message.
 
 User role: ${userType}
-Message: "${message}"
+User message: "${message}"
 
-Classification rules:
-- "chat": any Kozi platform guidance, greetings, job seeker or employer requests, platform help.
-  - Examples: "I need a job", "I want to hire", "How do I apply for a job?"
-- "sql": database or analytics queries (jobs, employers, users, stats). Usually admin only.
-- "gmail": email-related actions (read, send, search). Only admin can execute. 
-  - If non-admin asks about Gmail, classify as "chat" and respond helpfully explaining admin-only access.
+Classification & Response Rules:
 
-Response rules:
-- If message is a valid Kozi action (like "I want to hire", "I need a job"), give a helpful step-by-step response.
-- For non-admin Gmail requests, suggest what they would do if they were admin.
-- Always be professional, supportive, and clear.
-- Return a JSON object ONLY like this:
+1. "chat" → Any request related to Kozi platform use, including:
+   - Job Seeker intent: finding or applying for jobs.
+     Examples of intent (not exact text):
+       • Asking to find a job
+       • Looking for opportunities
+       • Requesting guidance on applications
+     Response:
+       "To match you with the best opportunities, please tell me:
+        • Your skills or profession
+        • Your experience level
+        • Preferred work location"
+   
+   - Employer intent: hiring, posting jobs, reviewing candidates.
+     Examples of intent:
+       • Wanting to hire a candidate
+       • Asking how to post a job
+       • Searching for qualified workers
+     Response:
+       "Great! To help you find the right candidate, please provide:
+        • Type of worker (basic or advanced professional)
+        • The role (e.g., cleaner, chef, marketing expert)
+        • Urgency or start date"
+
+2. "sql" → Requests to query jobs, employers, users, or platform statistics. Usually admin only.
+
+3. "gmail" → Email actions (read/send/search). Only admin can execute.
+   - Non-admins asking about emails → classify as "chat" and respond:
+     "You need admin access to check emails. You can ask me for job or platform info instead."
+
+Tone & Style:
+- Always professional, warm, and supportive.
+- Clear, concise, avoid unnecessary details.
+- Use bullet points for actionable instructions.
+- Do NOT write long paragraphs unless necessary.
+- Return ONLY a JSON object with exactly these keys:
 {
   "type": "chat" | "sql" | "gmail",
-  "response": "Your friendly, actionable reply here."
+  "response": "Concise, structured response here"
 }
 `;
 
-    const response = await client.chat.completions.create({
+    const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0,
       max_tokens: 300,
     });
 
-    const resultText = response.choices[0].message?.content?.trim() || '';
+    const resultText = completion.choices[0].message?.content?.trim() || "";
+
     let parsed;
     try {
       parsed = JSON.parse(resultText);
-    } catch {
-      // fallback: default to chat
-      parsed = { type: "chat", response: "I'm here to help with Kozi platform requests!" };
+    } catch (err) {
+      // fallback if JSON parsing fails
+      parsed = {
+        type: "chat",
+        response: "I'm here to help with Kozi platform requests. Please tell me more about your question.",
+      };
     }
 
     res.json(parsed);

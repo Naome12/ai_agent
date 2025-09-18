@@ -76,9 +76,9 @@ I can also help you retrieve data from our database. Try asking questions like:
       .replace(/\*\*(.*?)\*\*/g, '**$1**')
       .replace(/✅/g, '✅ ')
       .replace(/❌/g, '❌ ')
-      .replace(/🔍/g, '🔍 ')
-      .replace(/📊/g, '📊 ')
-      .replace(/📭/g, '📭 ');
+      // .replace(//g, ' ')
+      // .replace(//g, ' ')
+      // .replace(//g, ' ');
   };
 
   const handleGmailQuery = async (message: string, streamId: string) => {
