@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
-      "/api": "https://ai-agent-mp10.onrender.com",
+      "/api": "https://ai-agent-khzn.onrender.com",
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(
