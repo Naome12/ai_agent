@@ -2,7 +2,6 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import fs from "fs";
 import util from "util";
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
@@ -21,9 +20,6 @@ type DebugLevel = "INFO" | "WARN" | "ERROR" | "DEBUG";
 export class GmailAgentService {
   private executor: any | null = null;
   private dataSource: DataSource | null = null;
-  private credentialsPath =
-    process.env.GMAIL_CREDENTIALS_PATH || "./credentials.json";
-  private tokenPath = process.env.GMAIL_TOKEN_PATH || "./token.json";
 
   private log(level: DebugLevel, msg: string, obj?: any) {
     const time = new Date().toISOString();
@@ -146,16 +142,12 @@ export class GmailAgentService {
   }
 
   // ---------------- Extract Email Content ----------------
-  private extractEmailContent(input: string): {
-    subject: string;
-    body: string;
-  } {
+  private extractEmailContent(input: string): { subject: string; body: string } {
     const lowerInput = input.toLowerCase();
     let subject = "Important Message from Management";
     let body =
       "Dear Employer,\n\nThis is an important message from management.\n\nThank you,\nManagement Team";
 
-    // Extract subject
     if (lowerInput.includes("subject") || lowerInput.includes("about")) {
       const subjectMatch =
         input.match(/subject[:\s]*([^\n\.]+)/i) ||
@@ -163,7 +155,6 @@ export class GmailAgentService {
       if (subjectMatch) subject = subjectMatch[1].trim();
     }
 
-    // Extract message body
     if (
       lowerInput.includes("say") ||
       lowerInput.includes("telling them") ||
@@ -180,7 +171,6 @@ export class GmailAgentService {
       }
     }
 
-    // Special case for monthly reports
     if (lowerInput.includes("monthly report")) {
       subject = "Monthly Report Submission Reminder";
       body = `Dear Employer,\n\nPlease remember to submit your monthly report by the end of this week. ${
@@ -195,55 +185,35 @@ export class GmailAgentService {
   private async getOAuth2Client(): Promise<OAuth2Client> {
     this.log("INFO", "getOAuth2Client: Start");
 
-    if (!fs.existsSync(this.credentialsPath)) {
+    const client_id = process.env.GMAIL_CLIENT_ID;
+    const client_secret = process.env.GMAIL_CLIENT_SECRET;
+    const redirect_uri = process.env.GMAIL_REDIRECT_URI;
+    const access_token = process.env.GMAIL_ACCESS_TOKEN;
+    const refresh_token = process.env.GMAIL_REFRESH_TOKEN;
+
+    if (!client_id || !client_secret || !redirect_uri) {
       throw new Error(
-        `Google credentials not found at ${this.credentialsPath}`
+        "GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, or GMAIL_REDIRECT_URI missing in environment"
       );
     }
 
-    const rawCreds = fs.readFileSync(this.credentialsPath, "utf-8");
-    const credentials = JSON.parse(rawCreds);
-    const appCreds = credentials.installed ?? credentials.web;
-    if (!appCreds) {
-      throw new Error("credentials.json missing 'installed' or 'web' blocks");
+    if (!access_token || !refresh_token) {
+      throw new Error(
+        "GMAIL_ACCESS_TOKEN or GMAIL_REFRESH_TOKEN missing in environment"
+      );
     }
 
-    const { client_id, client_secret, redirect_uris } = appCreds;
     const oAuth2Client = new google.auth.OAuth2(
       client_id,
       client_secret,
-      redirect_uris[0]
+      redirect_uri
     );
 
-    if (!fs.existsSync(this.tokenPath)) {
-      throw new Error(`Token file not found at ${this.tokenPath}`);
-    }
-
-    const tokenJson = JSON.parse(fs.readFileSync(this.tokenPath, "utf-8"));
-    this.log(
-      "DEBUG",
-      "Loaded token.json keys",
-      this.sanitizeCredentials(tokenJson)
-    );
-    oAuth2Client.setCredentials(tokenJson);
-
-    // Refresh/ensure access token
-    try {
-      const atResult = await oAuth2Client.getAccessToken();
-      this.log("INFO", "getAccessToken succeeded", {
-        token:
-          typeof atResult === "string"
-            ? "[string]"
-            : {
-                token: atResult.token ? "[REDACTED]" : "null",
-                res: atResult.res ? "[response object]" : "null",
-              },
-      });
-    } catch (err) {
-      this.log("WARN", "getAccessToken failed (will still try Gmail API)", {
-        err: this.safeErr(err),
-      });
-    }
+    oAuth2Client.setCredentials({
+      access_token,
+      refresh_token,
+      scope: process.env.GMAIL_SCOPE || "https://mail.google.com/",
+    });
 
     // Sanity check Gmail API
     try {
@@ -279,26 +249,14 @@ export class GmailAgentService {
     const oAuth2Client = await this.getOAuth2Client();
 
     const getAccessToken = async () => {
-      try {
-        const token = await oAuth2Client.getAccessToken();
-        if (typeof token === "string") {
-          return token;
-        } else if (token && token.token) {
-          return token.token;
-        }
-        throw new Error("Unable to retrieve access token");
-      } catch (error) {
-        this.log("ERROR", "Failed to get access token", {
-          err: this.safeErr(error),
-        });
-        throw error;
-      }
+      const token = await oAuth2Client.getAccessToken();
+      if (typeof token === "string") return token;
+      else if (token && token.token) return token.token;
+      throw new Error("Unable to retrieve access token");
     };
 
     const gmailConfig = {
-      credentials: {
-        accessToken: getAccessToken,
-      },
+      credentials: { accessToken: getAccessToken },
       scopes: ["https://mail.google.com/"],
     };
 
@@ -345,7 +303,6 @@ export class GmailAgentService {
           (lowerInput.includes("send") || lowerInput.includes("email")));
 
       if (isBulkEmployerEmail) {
-        // Handle bulk email to employers automatically
         const { subject, body } = this.extractEmailContent(input);
         const employerEmails = await this.fetchEmployerEmails();
 
@@ -364,7 +321,6 @@ export class GmailAgentService {
         };
       }
 
-      // Use the LangChain agent for other Gmail requests
       const exec = await this.init();
       if (exec.memory) exec.memory.clear?.();
       const res = await exec.invoke({ input });
@@ -392,7 +348,7 @@ export class GmailAgentService {
   }
 }
 
-// Run diagnostics if called directly
+// Optional standalone test
 if (require.main === module) {
   (async () => {
     const svc = new GmailAgentService();
