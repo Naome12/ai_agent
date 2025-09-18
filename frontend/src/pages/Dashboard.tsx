@@ -4,6 +4,9 @@ import ChatContainer from "@/components/chat/ChatContainer";
 import { toast } from "@/hooks/use-toast";
 import { useAuthStore } from "@/stores/authStore";
 
+// Use VITE API URL
+const API_URL = import.meta.env.VITE_API_URL || "https://ai-agent-khzn.onrender.com/api";
+
 export default function Dashboard() {
   const { user, token } = useAuthStore();
   const userType = (user?.role || "job_seeker") as UserType;
@@ -56,16 +59,11 @@ I can also help you retrieve data from our database. Try asking questions like:
     
     const lowerMessage = message.toLowerCase();
     
-    // Check for Gmail queries first (admin only)
     const hasGmail = gmailKeywords.some(keyword => lowerMessage.includes(keyword));
     const hasSql = sqlKeywords.some(keyword => lowerMessage.includes(keyword));
     const hasChat = chatKeywords.some(keyword => lowerMessage.includes(keyword));
     
-    // If it's a Gmail query and user is admin, prioritize Gmail
-    if (hasGmail && userType === "admin") {
-      return 'gmail';
-    }
-    
+    if (hasGmail && userType === "admin") return 'gmail';
     return hasSql && !hasChat ? 'sql' : 'chat';
   };
 
@@ -75,70 +73,48 @@ I can also help you retrieve data from our database. Try asking questions like:
       .replace(/\|\s*---/g, '| ——— ')
       .replace(/\*\*(.*?)\*\*/g, '**$1**')
       .replace(/✅/g, '✅ ')
-      .replace(/❌/g, '❌ ')
-      // .replace(//g, ' ')
-      // .replace(//g, ' ')
-      // .replace(//g, ' ');
+      .replace(/❌/g, '❌ ');
   };
 
   const handleGmailQuery = async (message: string, streamId: string) => {
     try {
-      if (!token) {
-        throw new Error("Authentication token is missing");
-      }
+      if (!token) throw new Error("Authentication token is missing");
 
-      const response = await fetch('/api/gmail/agent', {
+      const response = await fetch(`${API_URL}/gmail/agent`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          input: message
-        })
+        body: JSON.stringify({ input: message })
       });
-      
+
       if (!response.ok) {
-        // Check if it's specifically an authentication error
-        if (response.status === 401) {
-          throw new Error("Authentication failed. Please log in again.");
-        }
+        if (response.status === 401) throw new Error("Authentication failed. Please log in again.");
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === streamId ? { 
-            ...msg, 
-            content: data.output || data.message || data.content || "Email action completed successfully",
-            isStreaming: false 
-          } : msg
+          msg.id === streamId
+            ? { ...msg, content: data.output || data.message || data.content || "Email action completed successfully", isStreaming: false }
+            : msg
         )
       );
-      
     } catch (error: any) {
       console.error("Gmail query error:", error);
-      
       let errorMessage = "❌ Failed to process email request. Please try again.";
-      if (error.message.includes("Authentication failed")) {
-        errorMessage = "❌ Authentication failed. Please log in again to use Gmail features.";
-      } else if (error.message.includes("token is missing")) {
-        errorMessage = "❌ Authentication required. Please log in again.";
-      }
-      
+      if (error.message.includes("Authentication failed")) errorMessage = "❌ Authentication failed. Please log in again to use Gmail features.";
+      else if (error.message.includes("token is missing")) errorMessage = "❌ Authentication required. Please log in again.";
+
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === streamId ? { 
-            ...msg, 
-            content: errorMessage,
-            isStreaming: false 
-          } : msg
+          msg.id === streamId ? { ...msg, content: errorMessage, isStreaming: false } : msg
         )
       );
-      
-      // Show toast for authentication errors
+
       if (error.message.includes("Authentication")) {
         toast({
           title: "Authentication Error",
@@ -152,43 +128,20 @@ I can also help you retrieve data from our database. Try asking questions like:
   const handleSendMessage = useCallback(
     async (message: string, currentUserType: UserType) => {
       setIsLoading(true);
-
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        type: "user",
-        content: message,
-        timestamp: new Date(),
-        userType: currentUserType,
-      };
-
+      const userMessage: Message = { id: Date.now().toString(), type: "user", content: message, timestamp: new Date(), userType: currentUserType };
       setMessages((prev) => [...prev, userMessage]);
 
       try {
         const queryType = detectQueryType(message);
-        
+
         if (queryType === 'gmail') {
           if (currentUserType !== 'admin') {
-            // Non-admin users trying to access Gmail functionality
-            const errorMessage: Message = {
-              id: Date.now().toString(),
-              type: "assistant",
-              content: "❌ Gmail functionality is only available for administrators.",
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            setMessages((prev) => [...prev, { id: Date.now().toString(), type: "assistant", content: "❌ Gmail functionality is only available for administrators.", timestamp: new Date() }]);
             setIsLoading(false);
             return;
           }
-          
           if (!token) {
-            // No authentication token available
-            const errorMessage: Message = {
-              id: Date.now().toString(),
-              type: "assistant",
-              content: "❌ Authentication required. Please log in again to use Gmail features.",
-              timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMessage]);
+            setMessages((prev) => [...prev, { id: Date.now().toString(), type: "assistant", content: "❌ Authentication required. Please log in again to use Gmail features.", timestamp: new Date() }]);
             setIsLoading(false);
             return;
           }
@@ -196,35 +149,20 @@ I can also help you retrieve data from our database. Try asking questions like:
 
         let streamId = `stream-${Date.now()}`;
         let assistantContent = "";
+        setMessages((prev) => [...prev, { id: streamId, type: "assistant", content: "", timestamp: new Date(), isStreaming: true }]);
 
-        // Add streaming message
-        setMessages((prev) => [
-          ...prev,
-          { 
-            id: streamId, 
-            type: "assistant", 
-            content: "", 
-            timestamp: new Date(),
-            isStreaming: true 
-          },
-        ]);
-
-        // Handle Gmail queries differently (using POST request with auth)
         if (queryType === 'gmail') {
           await handleGmailQuery(message, streamId);
           setIsLoading(false);
           return;
         }
 
-        // For chat and SQL, use EventSource as before
         let apiEndpoint = '';
         if (queryType === 'chat') {
           const allMessages = [...messages, userMessage];
-          apiEndpoint = `/api/chat/stream?messages=${encodeURIComponent(
-            JSON.stringify(allMessages)
-          )}`;
+          apiEndpoint = `${API_URL}/chat/stream?messages=${encodeURIComponent(JSON.stringify(allMessages))}`;
         } else {
-          apiEndpoint = `/api/sql-agent/stream?input=${encodeURIComponent(message)}`;
+          apiEndpoint = `${API_URL}/sql-agent/stream?input=${encodeURIComponent(message)}`;
         }
 
         console.log("Calling API endpoint:", apiEndpoint);
@@ -236,12 +174,9 @@ I can also help you retrieve data from our database. Try asking questions like:
             if (e.data === '[DONE]') {
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === streamId ? { 
-                    ...msg, 
-                    id: Date.now().toString(), 
-                    isStreaming: false,
-                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
-                  } : msg
+                  msg.id === streamId
+                    ? { ...msg, id: Date.now().toString(), isStreaming: false, content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent }
+                    : msg
                 )
               );
               evtSource.close();
@@ -254,22 +189,20 @@ I can also help you retrieve data from our database. Try asking questions like:
               assistantContent += data.content;
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === streamId ? { 
-                    ...msg, 
-                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
-                  } : msg
+                  msg.id === streamId
+                    ? { ...msg, content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent }
+                    : msg
                 )
               );
             }
-          } catch (error) {
+          } catch {
             if (e.data !== "[DONE]") {
               assistantContent += e.data;
               setMessages((prev) =>
                 prev.map((msg) =>
-                  msg.id === streamId ? { 
-                    ...msg, 
-                    content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent
-                  } : msg
+                  msg.id === streamId
+                    ? { ...msg, content: queryType === 'sql' ? formatSQLContent(assistantContent) : assistantContent }
+                    : msg
                 )
               );
             }
@@ -278,39 +211,26 @@ I can also help you retrieve data from our database. Try asking questions like:
 
         evtSource.onerror = (err) => {
           console.error("SSE error:", err, "Endpoint:", apiEndpoint);
-          toast({
-            title: "Error",
-            description: `Failed to process your ${queryType} query`,
-            variant: "destructive",
-          });
+          toast({ title: "Error", description: `Failed to process your ${queryType} query`, variant: "destructive" });
           evtSource.close();
-          
+
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === streamId 
-                ? { 
-                    ...msg, 
-                    content: assistantContent + `\n\n❌ Failed to complete the ${queryType} query. Please try again.`,
-                    isStreaming: false 
-                  } 
+              msg.id === streamId
+                ? { ...msg, content: assistantContent + `\n\n❌ Failed to complete the ${queryType} query. Please try again.`, isStreaming: false }
                 : msg
             )
           );
           setIsLoading(false);
         };
 
-        // Close the stream after 30 seconds timeout
         setTimeout(() => {
           if (evtSource.readyState !== EventSource.CLOSED) {
             evtSource.close();
             setMessages((prev) =>
               prev.map((msg) =>
-                msg.id === streamId 
-                  ? { 
-                      ...msg, 
-                      content: assistantContent + `\n\n⏰ ${queryType} query timeout. Please try again.`,
-                      isStreaming: false 
-                    } 
+                msg.id === streamId
+                  ? { ...msg, content: assistantContent + `\n\n⏰ ${queryType} query timeout. Please try again.`, isStreaming: false }
                   : msg
               )
             );
@@ -320,20 +240,8 @@ I can also help you retrieve data from our database. Try asking questions like:
 
       } catch (err) {
         console.error(err);
-        toast({
-          title: "Error",
-          description: "Failed to process your message",
-          variant: "destructive",
-        });
-        
-        const errorMessage: Message = {
-          id: Date.now().toString(),
-          type: "assistant",
-          content: "❌ Sorry, I couldn't process your query. Please try again.",
-          timestamp: new Date(),
-        };
-        
-        setMessages((prev) => [...prev, errorMessage]);
+        toast({ title: "Error", description: "Failed to process your message", variant: "destructive" });
+        setMessages((prev) => [...prev, { id: Date.now().toString(), type: "assistant", content: "❌ Sorry, I couldn't process your query. Please try again.", timestamp: new Date() }]);
         setIsLoading(false);
       }
     },
